@@ -1,0 +1,403 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
+import csv
+import os
+
+# Main window
+root = tk.Tk()
+root.title("Stock Portfolio Tracker")
+root.geometry("1350x850")
+root.minsize(1000, 700)
+root.configure(bg="#f5f6fc")
+
+FILE = "portfolio.csv"
+
+stocks = []
+
+# Demo data
+def load_stocks():
+    global stocks
+
+    if os.path.exists(FILE):
+        with open(FILE, "r", newline="") as f:
+            stocks = list(csv.DictReader(f))
+    else:
+        stocks = [
+            {"symbol": "TCS", "quantity": 5,
+             "buy": 1200, "current": 1300},
+            {"symbol": "INFY", "quantity": 1,
+             "buy": 1000, "current": 1000}
+        ]
+
+
+# Save data
+def save_data():
+    with open(FILE, "w", newline="") as f:
+        fields = ["symbol", "quantity", "buy", "current"]
+        writer = csv.DictWriter(f, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(stocks)
+
+    messagebox.showinfo("Success", "Portfolio saved successfully!")
+
+
+# Dashboard update
+def update_dashboard():
+
+    investment = sum(
+        int(s["quantity"]) * float(s["buy"])
+        for s in stocks
+    )
+
+    current_value = sum(
+        int(s["quantity"]) * float(s["current"])
+        for s in stocks
+    )
+
+    profit = current_value - investment
+
+    investment_label.config(
+        text=f"₹{investment:,.0f}"
+    )
+
+    current_label.config(
+        text=f"₹{current_value:,.0f}"
+    )
+
+    profit_label.config(
+        text=f"₹{profit:,.0f}",
+        fg="#168b38" if profit >= 0 else "#e32636"
+    )
+
+    # Clear old table rows
+    for item in table.get_children():
+        table.delete(item)
+
+    # Insert stock details
+    for i, s in enumerate(stocks):
+
+        qty = int(s["quantity"])
+        buy = float(s["buy"])
+        current = float(s["current"])
+
+        pl = qty * (current - buy)
+
+        table.insert(
+            "", "end",
+            iid=str(i),
+            values=(
+                s["symbol"],
+                qty,
+                f"₹{buy:.0f}",
+                f"₹{current:.0f}",
+                f"₹{pl:,.0f}",
+                "Delete"
+            ),
+            tags=("profit" if pl >= 0 else "loss",)
+        )
+
+
+# Add stock
+def add_stock():
+
+    try:
+        symbol = symbol_entry.get().strip().upper()
+        quantity = int(quantity_entry.get())
+        buy = float(buy_entry.get())
+        current = float(current_entry.get())
+
+        if not symbol or quantity <= 0 or buy <= 0 or current <= 0:
+            raise ValueError
+
+        stock = {
+            "symbol": symbol,
+            "quantity": quantity,
+            "buy": buy,
+            "current": current
+        }
+
+        stocks.append(stock)
+
+        save_data()
+        update_dashboard()
+
+        symbol_entry.delete(0, tk.END)
+        quantity_entry.delete(0, tk.END)
+        buy_entry.delete(0, tk.END)
+        current_entry.delete(0, tk.END)
+
+    except ValueError:
+        messagebox.showerror(
+            "Invalid Input",
+            "Please enter valid stock details."
+        )
+
+
+# Delete stock
+def delete_stock():
+
+    selected = table.selection()
+
+    if not selected:
+        messagebox.showwarning(
+            "Warning", "Please select a stock to delete."
+        )
+        return
+
+    index = int(selected[0])
+    stocks.pop(index)
+
+    save_data()
+    update_dashboard()
+
+
+# ---------------- HEADER ----------------
+
+header = tk.Frame(root, bg="#142f56", height=120)
+header.pack(fill="x")
+header.pack_propagate(False)
+
+tk.Label(
+    header,
+    text="📈  Stock Portfolio Tracker",
+    font=("Arial", 32, "bold"),
+    bg="#142f56",
+    fg="white"
+).pack(expand=True)
+
+
+# ---------------- DASHBOARD CARDS ----------------
+
+dashboard = tk.Frame(root, bg="#f5f6fc")
+dashboard.pack(fill="x", padx=30, pady=25)
+
+def create_card(title, icon, color):
+
+    card = tk.Frame(
+        dashboard,
+        bg="white",
+        highlightbackground="#d9deeb",
+        highlightthickness=1
+    )
+
+    card.pack(side="left", fill="both",
+              expand=True, padx=10, ipady=15)
+
+    tk.Label(
+        card,
+        text=icon,
+        font=("Arial", 35),
+        bg="white"
+    ).pack(side="left", padx=15)
+
+    content = tk.Frame(card, bg="white")
+    content.pack(side="left", expand=True)
+
+    tk.Label(
+        content,
+        text=title,
+        font=("Arial", 15),
+        bg="white",
+        fg="#17233d"
+    ).pack(anchor="w")
+
+    value = tk.Label(
+        content,
+        text="₹0",
+        font=("Arial", 25, "bold"),
+        bg="white",
+        fg=color
+    )
+
+    value.pack(anchor="w", pady=8)
+
+    return value
+
+
+investment_label = create_card(
+    "Total Investment", "💰", "#111827"
+)
+
+current_label = create_card(
+    "Current Value", "📈", "#16a34a"
+)
+
+profit_label = create_card(
+    "Profit / Loss", "🏆", "#168b38"
+)
+
+
+# ---------------- ADD STOCK FORM ----------------
+
+form = tk.LabelFrame(
+    root,
+    text="  Add New Stock  ",
+    font=("Arial", 17, "bold"),
+    bg="white",
+    fg="#172e61",
+    padx=20,
+    pady=20
+)
+
+form.pack(fill="x", padx=35, pady=10)
+
+fields = [
+    ("Symbol", 0),
+    ("Quantity", 1),
+    ("Buy Price", 2),
+    ("Current Price", 3)
+]
+
+entries = []
+
+for name, col in fields:
+
+    tk.Label(
+        form,
+        text=name,
+        font=("Arial", 12),
+        bg="white"
+    ).grid(row=0, column=col, sticky="w",
+           padx=10, pady=5)
+
+    entry = tk.Entry(
+        form,
+        font=("Arial", 14),
+        width=18,
+        bd=1,
+        relief="solid"
+    )
+
+    entry.grid(
+        row=1, column=col,
+        padx=10, pady=8, ipady=8,
+        sticky="ew"
+    )
+
+    form.grid_columnconfigure(col, weight=1)
+    entries.append(entry)
+
+
+symbol_entry = entries[0]
+quantity_entry = entries[1]
+buy_entry = entries[2]
+current_entry = entries[3]
+
+add_button = tk.Button(
+    form,
+    text="＋ Add Stock",
+    font=("Arial", 13, "bold"),
+    bg="#1765ed",
+    fg="white",
+    activebackground="#124fc0",
+    activeforeground="white",
+    relief="flat",
+    cursor="hand2",
+    command=add_stock
+)
+
+add_button.grid(
+    row=1, column=4,
+    padx=15, ipady=10,
+    sticky="ew"
+)
+
+
+# ---------------- PORTFOLIO TABLE ----------------
+
+portfolio = tk.LabelFrame(
+    root,
+    text="  My Portfolio  ",
+    font=("Arial", 17, "bold"),
+    bg="white",
+    fg="#172e61",
+    padx=15,
+    pady=15
+)
+
+portfolio.pack(fill="both", expand=True,
+               padx=35, pady=15)
+
+style = ttk.Style()
+style.theme_use("clam")
+
+style.configure(
+    "Treeview",
+    background="white",
+    foreground="#17233d",
+    rowheight=42,
+    font=("Arial", 12),
+    fieldbackground="white"
+)
+
+style.configure(
+    "Treeview.Heading",
+    background="#dce7ff",
+    foreground="#14213d",
+    font=("Arial", 12, "bold"),
+    padding=12
+)
+
+style.map(
+    "Treeview",
+    background=[("selected", "#b9d3ff")],
+    foreground=[("selected", "#14213d")]
+)
+
+columns = (
+    "Symbol", "Quantity", "Buy Price",
+    "Current Price", "Profit / Loss", "Action"
+)
+
+table = ttk.Treeview(
+    portfolio,
+    columns=columns,
+    show="headings",
+    selectmode="browse"
+)
+
+for col in columns:
+    table.heading(col, text=col)
+    table.column(col, anchor="center", width=150)
+
+table.tag_configure("profit", foreground="#168b38")
+table.tag_configure("loss", foreground="#e32636")
+
+table.pack(fill="both", expand=True)
+
+# Delete button
+delete_button = tk.Button(
+    root,
+    text="🗑 Delete Selected Stock",
+    font=("Arial", 13, "bold"),
+    bg="#e93640",
+    fg="white",
+    relief="flat",
+    cursor="hand2",
+    command=delete_stock
+)
+
+delete_button.pack(pady=8, ipadx=15, ipady=8)
+
+
+# ---------------- SAVE BUTTON ----------------
+
+save_button = tk.Button(
+    root,
+    text="💾 Save Portfolio",
+    font=("Arial", 16, "bold"),
+    bg="#142f56",
+    fg="white",
+    relief="flat",
+    cursor="hand2",
+    command=save_data
+)
+
+save_button.pack(pady=15, ipadx=35, ipady=10)
+
+
+# Start application
+load_stocks()
+update_dashboard()
+
+root.mainloop()
